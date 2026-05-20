@@ -1,4 +1,4 @@
-# HOA Rental Tracker - Project Guide for Claude
+# HOA Utility - Project Guide for Claude
 
 ## What This Is
 A Streamlit dashboard for the Wynbrooke HOA board (Hendricks County, Indiana).
@@ -49,7 +49,7 @@ and monitors the local real estate market for the subdivision (ZIP: 46234).
 - Graceful error handling with visible user-facing messages
 
 ## Git
-- Remote: https://github.com/bobstephan-byte/hoa-rental-tracker
+- Remote: https://github.com/bobstephan-byte/hoa-utility
 - Branch: main
 - Never commit: venv/, .env, data/*.json
 

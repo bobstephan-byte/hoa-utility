@@ -11,6 +11,8 @@ import sys
 import pandas as pd
 import streamlit as st
 
+from parse_property_data import normalize_addr
+
 st.set_page_config(
     page_title="Wynbrooke Rental Tracker",
     page_icon="🏘️",
@@ -21,6 +23,7 @@ _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(_BASE_DIR, "data", "wynbrooke_parcels.csv")
 OVERRIDES_PATH = os.path.join(_BASE_DIR, "data", "overrides.json")
 MARKET_MONITOR_PATH = os.path.join(_BASE_DIR, "data", "market_monitor_listings.json")
+CALIBER_RENTALS_PATH = os.path.join(_BASE_DIR, "data", "caliber_registered_rentals.json")
 
 
 # ── Overrides I/O ────────────────────────────────────────────────────────────
@@ -35,6 +38,50 @@ def load_overrides():
 def save_overrides(overrides):
     with open(OVERRIDES_PATH, "w") as f:
         json.dump(overrides, f, indent=2)
+
+
+def load_market_data():
+    if os.path.exists(MARKET_MONITOR_PATH):
+        with open(MARKET_MONITOR_PATH, "r") as f:
+            return json.load(f)
+    return None
+
+
+def load_caliber_data():
+    if os.path.exists(CALIBER_RENTALS_PATH):
+        with open(CALIBER_RENTALS_PATH, "r") as f:
+            return json.load(f)
+    return None
+
+
+def caliber_registry_by_address(caliber_data):
+    if not caliber_data:
+        return {}
+    registry = {}
+    for record in caliber_data.get("records", []):
+        norm = record.get("address_norm")
+        if norm:
+            registry[norm] = record
+    return registry
+
+
+def rental_ad_delta_rows(rental_ads, caliber_data):
+    registry = caliber_registry_by_address(caliber_data)
+    rows = []
+    for listing in rental_ads:
+        norm = normalize_addr(listing.get("address", ""))
+        caliber_record = registry.get(norm)
+        registered = bool(caliber_record and caliber_record.get("is_hoa_rental"))
+        rows.append({
+            "Address": listing.get("address", ""),
+            "Caliber Registered": "Yes" if registered else "No",
+            "Asking Rent": listing.get("list_price"),
+            "Days Listed": listing.get("days_on_market"),
+            "Agent": listing.get("listing_agent", ""),
+            "Parcel Number": listing.get("parcel_number", ""),
+            "Caliber Unit ID": caliber_record.get("unit_id") if caliber_record else "",
+        })
+    return rows
 
 
 # ── Data loading ─────────────────────────────────────────────────────────────
@@ -180,7 +227,12 @@ if section_filter:
 
 # ── Main content ─────────────────────────────────────────────────────────────
 
-tab_table, tab_analytics, tab_market = st.tabs(["Property Table", "Analytics", "Market Monitor"])
+tab_table, tab_analytics, tab_market, tab_delta = st.tabs([
+    "Property Table",
+    "Analytics",
+    "Market Monitor",
+    "Delta Report",
+])
 
 # ── Table tab ────────────────────────────────────────────────────────────────
 
@@ -361,12 +413,6 @@ with tab_analytics:
 with tab_market:
     st.subheader("Market Monitor — Active Listing Intelligence")
 
-    def load_market_data():
-        if os.path.exists(MARKET_MONITOR_PATH):
-            with open(MARKET_MONITOR_PATH, "r") as f:
-                return json.load(f)
-        return None
-
     if st.button("Refresh Listings", type="primary"):
         with st.spinner("Scanning RentCast for active listings..."):
             result = subprocess.run(
@@ -468,3 +514,87 @@ with tab_market:
                 )
         else:
             st.info("No Wynbrooke properties currently advertised for rent.")
+
+# ── Delta Report tab ────────────────────────────────────────────────────────
+
+with tab_delta:
+    st.subheader("Delta Report — Rental Ads vs HOA Registration")
+
+    dcol1, dcol2 = st.columns([1, 3])
+    with dcol1:
+        if st.button("Sync Caliber Rentals", type="primary"):
+            with st.spinner("Syncing Caliber rental registrations..."):
+                result = subprocess.run(
+                    [sys.executable, os.path.join(_BASE_DIR, "caliber_sync.py")],
+                    capture_output=True, text=True, timeout=90,
+                )
+                if result.returncode == 0:
+                    st.success("Caliber rentals synced successfully.")
+                else:
+                    st.error(f"Caliber sync failed: {result.stderr or result.stdout}")
+            st.rerun()
+
+    market_data = load_market_data()
+    caliber_data = load_caliber_data()
+
+    if market_data is None:
+        st.info("No RentCast listing data available yet. Refresh listings from the Market Monitor tab.")
+    elif caliber_data is None:
+        st.info("No Caliber rental registration snapshot available yet. Click Sync Caliber Rentals.")
+    else:
+        rental_ads = [r for r in market_data if r.get("listing_type") == "for_rent"]
+        delta_rows = rental_ad_delta_rows(rental_ads, caliber_data)
+        unregistered_ads = [row for row in delta_rows if row["Caliber Registered"] == "No"]
+        registered_ads = [row for row in delta_rows if row["Caliber Registered"] == "Yes"]
+        summary = caliber_data.get("summary", {})
+        last_synced = caliber_data.get("last_synced", "")
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Active Rental Ads", len(rental_ads))
+        m2.metric("Not Registered", len(unregistered_ads))
+        m3.metric("Registered Ads", len(registered_ads))
+        m4.metric("Caliber Rentals", summary.get("hoa_rental_units", 0))
+
+        st.caption(
+            f"Caliber snapshot: {last_synced[:10] if last_synced else 'N/A'}. "
+            f"Matched by normalized street address."
+        )
+
+        st.markdown("---")
+        st.markdown("**Listed for rent but not registered in Caliber**")
+        if unregistered_ads:
+            st.dataframe(
+                pd.DataFrame(unregistered_ads).sort_values(
+                    "Days Listed", ascending=True, na_position="last"
+                ),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Parcel Number": st.column_config.TextColumn(width="medium"),
+                    "Caliber Unit ID": st.column_config.TextColumn(width="small"),
+                },
+            )
+            st.warning(
+                f"{len(unregistered_ads)} active rental ad(s) are not marked as HOA rentals in Caliber."
+            )
+        else:
+            st.success("No active rental ads are missing from Caliber registration.")
+
+        st.markdown("---")
+        st.markdown("**All active rental ads with Caliber registration status**")
+        if delta_rows:
+            st.dataframe(
+                pd.DataFrame(delta_rows).sort_values(
+                    ["Caliber Registered", "Days Listed"],
+                    ascending=[True, True],
+                    na_position="last",
+                ),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Parcel Number": st.column_config.TextColumn(width="medium"),
+                    "Caliber Unit ID": st.column_config.TextColumn(width="small"),
+                },
+            )
+        else:
+            st.info("No active Wynbrooke rental ads in the current Market Monitor snapshot.")

@@ -1,42 +1,52 @@
 [
   {
-    "address": "10498 WINTERGREEN  WAY",
-    "parcel_number": "320829485017000022",
+    "address": "10477 SECRETARIAT DR",
+    "parcel_number": "320829379015000022",
     "current_status": "Rental",
-    "list_price": 2125,
-    "days_on_market": 44,
+    "list_price": 2065,
+    "days_on_market": 1,
     "listing_agent": "",
     "listing_type": "for_rent",
-    "last_scanned": "2026-04-04T12:31:31.082410+00:00"
-  },
-  {
-    "address": "10483 DAY STAR DR",
-    "parcel_number": "320829377010000022",
-    "current_status": "Rental",
-    "list_price": 2290,
-    "days_on_market": 44,
-    "listing_agent": "",
-    "listing_type": "for_rent",
-    "last_scanned": "2026-04-04T12:31:31.082410+00:00"
+    "last_scanned": "2026-04-09T10:10:32.443960+00:00"
   },
   {
     "address": "2336 WYNBROOKE BLVD",
     "parcel_number": "320829493003000022",
     "current_status": "Rental",
     "list_price": 2029,
-    "days_on_market": 18,
+    "days_on_market": 23,
     "listing_agent": "",
     "listing_type": "for_rent",
-    "last_scanned": "2026-04-04T12:31:31.082410+00:00"
+    "last_scanned": "2026-04-09T10:10:32.443960+00:00"
+  },
+  {
+    "address": "10498 WINTERGREEN  WAY",
+    "parcel_number": "320829485017000022",
+    "current_status": "Rental",
+    "list_price": 2050,
+    "days_on_market": 49,
+    "listing_agent": "",
+    "listing_type": "for_rent",
+    "last_scanned": "2026-04-09T10:10:32.443960+00:00"
+  },
+  {
+    "address": "10483 DAY STAR DR",
+    "parcel_number": "320829377010000022",
+    "current_status": "Rental",
+    "list_price": 2245,
+    "days_on_market": 49,
+    "listing_agent": "",
+    "listing_type": "for_rent",
+    "last_scanned": "2026-04-09T10:10:32.443960+00:00"
   },
   {
     "address": "10619 NORTHERN DANCER DR",
     "parcel_number": "320829495002000022",
     "current_status": "Rental",
-    "list_price": 1940,
+    "list_price": 1910,
     "days_on_market": 1,
     "listing_agent": "",
     "listing_type": "for_rent",
-    "last_scanned": "2026-04-04T12:31:31.082410+00:00"
+    "last_scanned": "2026-04-09T10:10:32.443960+00:00"
   }
 ]
