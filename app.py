@@ -24,6 +24,7 @@ DATA_PATH = os.path.join(_BASE_DIR, "data", "wynbrooke_parcels.csv")
 OVERRIDES_PATH = os.path.join(_BASE_DIR, "data", "overrides.json")
 MARKET_MONITOR_PATH = os.path.join(_BASE_DIR, "data", "market_monitor_listings.json")
 CALIBER_RENTALS_PATH = os.path.join(_BASE_DIR, "data", "caliber_registered_rentals.json")
+CALIBER_DELINQUENCIES_PATH = os.path.join(_BASE_DIR, "data", "caliber_delinquencies.json")
 DELINQUENCIES_PATH = os.path.join(_BASE_DIR, "data", "delinquencies.csv")
 DELINQUENCIES_TEMPLATE_PATH = os.path.join(_BASE_DIR, "data", "delinquencies_template.csv")
 
@@ -83,6 +84,13 @@ def load_market_data():
 def load_caliber_data():
     if os.path.exists(CALIBER_RENTALS_PATH):
         with open(CALIBER_RENTALS_PATH, "r") as f:
+            return json.load(f)
+    return None
+
+
+def load_caliber_delinquency_data():
+    if os.path.exists(CALIBER_DELINQUENCIES_PATH):
+        with open(CALIBER_DELINQUENCIES_PATH, "r") as f:
             return json.load(f)
     return None
 
@@ -688,28 +696,56 @@ with tab_delta:
 with tab_treasurer:
     st.subheader("Treasurer — Delinquency Tracker")
 
-    ledger = load_delinquency_data()
-    active = active_delinquencies(ledger)
+    delinquency_data = load_caliber_delinquency_data()
+    records = delinquency_data.get("records", []) if delinquency_data else []
+    delinquency_df = pd.DataFrame(records)
+    if delinquency_df.empty:
+        delinquency_df = pd.DataFrame(
+            columns=[
+                "display_name",
+                "account_number",
+                "address",
+                "stage_name",
+                "transaction_account",
+                "balance",
+            ]
+        )
+    delinquency_df["balance"] = pd.to_numeric(
+        delinquency_df["balance"], errors="coerce"
+    ).fillna(0.0)
+    active = delinquency_df[delinquency_df["balance"] > 0].copy()
 
     total_balance = active["balance"].sum() if not active.empty else 0
     delinquent_accounts = len(active)
-    serious_balance = active.loc[active["days_past_due"] >= 91, "balance"].sum() if not active.empty else 0
-    payment_plan_count = len(active[active["status"] == "Payment Plan"]) if not active.empty else 0
+    average_balance = total_balance / delinquent_accounts if delinquent_accounts else 0
+    largest_balance = active["balance"].max() if not active.empty else 0
+    stage_count = active["stage_name"].nunique() if not active.empty else 0
 
     t1, t2, t3, t4 = st.columns(4)
     t1.metric("Open Balance", f"${total_balance:,.2f}")
     t2.metric("Open Accounts", delinquent_accounts)
-    t3.metric("91+ Balance", f"${serious_balance:,.2f}")
-    t4.metric("Payment Plans", payment_plan_count)
+    t3.metric("Average Balance", f"${average_balance:,.2f}")
+    t4.metric("Stages", stage_count)
 
     st.caption(
-        "This ledger is stored locally in data/delinquencies.csv and is ignored by Git."
+        "Caliber delinquency data is synced to data/caliber_delinquencies.json and ignored by Git."
     )
 
-    if ledger.empty:
-        st.info("No delinquency ledger exists yet. Upload a CSV or start from the template.")
+    sync_col, tool_col = st.columns([1, 2])
+    with sync_col:
+        if st.button("Sync Caliber Delinquencies", type="primary"):
+            with st.spinner("Syncing Caliber delinquency records..."):
+                result = subprocess.run(
+                    [sys.executable, os.path.join(_BASE_DIR, "caliber_delinquency_sync.py")],
+                    capture_output=True, text=True, timeout=90,
+                )
+                if result.returncode == 0:
+                    st.success("Caliber delinquencies synced successfully.")
+                else:
+                    st.error(f"Caliber delinquency sync failed: {result.stderr or result.stdout}")
+            st.rerun()
 
-    with st.expander("CSV tools", expanded=ledger.empty):
+    with tool_col.expander("CSV fallback"):
         if os.path.exists(DELINQUENCIES_TEMPLATE_PATH):
             with open(DELINQUENCIES_TEMPLATE_PATH, "rb") as f:
                 st.download_button(
@@ -725,80 +761,64 @@ with tab_treasurer:
             st.success("Ledger imported.")
             st.rerun()
 
-    if not ledger.empty:
+    if delinquency_data is None:
+        st.info("No Caliber delinquency snapshot available yet. Click Sync Caliber Delinquencies.")
+    elif active.empty:
+        st.success("No open delinquent balances in the current Caliber snapshot.")
+    else:
+        last_synced = delinquency_data.get("last_synced", "")
+        st.caption(f"Last synced: {last_synced[:19] if last_synced else 'N/A'} UTC")
+
         st.markdown("---")
         chart_col, status_col = st.columns([1, 1])
 
         with chart_col:
-            st.markdown("**Aging by Balance**")
-            aging = active.copy()
-            if aging.empty:
-                st.info("No open delinquent balances.")
-            else:
-                aging["aging_bucket"] = aging["days_past_due"].apply(delinquency_aging_bucket)
-                aging_chart = (
-                    aging.groupby("aging_bucket")["balance"]
-                    .sum()
-                    .reindex(["1-30", "31-60", "61-90", "91+"], fill_value=0)
-                )
-                st.bar_chart(aging_chart)
+            st.markdown("**Stage by Balance**")
+            stage_chart = active.groupby("stage_name")["balance"].sum().sort_values(ascending=False)
+            st.bar_chart(stage_chart)
 
         with status_col:
-            st.markdown("**Status by Balance**")
-            if active.empty:
-                st.info("No open delinquent balances.")
-            else:
-                status_chart = active.groupby("status")["balance"].sum().sort_values(ascending=False)
-                st.bar_chart(status_chart)
+            st.markdown("**Transaction Account by Balance**")
+            account_chart = (
+                active.groupby("transaction_account")["balance"]
+                .sum()
+                .sort_values(ascending=False)
+            )
+            st.bar_chart(account_chart)
 
         st.markdown("---")
-        st.markdown("**Ledger**")
-        edited_ledger = st.data_editor(
-            ledger,
-            num_rows="dynamic",
+        st.markdown("**Open Delinquencies**")
+        display_df = active[
+            [
+                "display_name",
+                "account_number",
+                "address",
+                "stage_name",
+                "transaction_account",
+                "balance",
+            ]
+        ].rename(columns={
+            "display_name": "Owner",
+            "account_number": "Account",
+            "address": "Address",
+            "stage_name": "Stage",
+            "transaction_account": "Transaction Account",
+            "balance": "Balance",
+        }).sort_values("Balance", ascending=False)
+        st.dataframe(
+            display_df,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "parcel_number": st.column_config.TextColumn("Parcel Number", width="medium"),
-                "property_address": st.column_config.TextColumn("Property Address", width="large"),
-                "owner_name": st.column_config.TextColumn("Owner", width="large"),
-                "balance": st.column_config.NumberColumn("Balance", min_value=0, format="$%.2f"),
-                "days_past_due": st.column_config.NumberColumn("Days Past Due", min_value=0, step=1),
-                "status": st.column_config.SelectboxColumn("Status", options=DELINQUENCY_STATUSES),
-                "delinquent_since": st.column_config.TextColumn("Delinquent Since"),
-                "last_payment_date": st.column_config.TextColumn("Last Payment"),
-                "next_action_date": st.column_config.TextColumn("Next Action Date"),
-                "next_action": st.column_config.SelectboxColumn("Next Action", options=DELINQUENCY_ACTIONS),
-                "notes": st.column_config.TextColumn("Notes", width="large"),
+                "Owner": st.column_config.TextColumn(width="large"),
+                "Address": st.column_config.TextColumn(width="large"),
+                "Balance": st.column_config.NumberColumn(format="$%.2f"),
             },
         )
-        save_col, export_col = st.columns([1, 1])
-        with save_col:
-            if st.button("Save Ledger Edits", type="primary"):
-                save_delinquency_data(edited_ledger)
-                st.success("Ledger saved.")
-                st.rerun()
-        with export_col:
-            packet = active[
-                [
-                    "property_address",
-                    "balance",
-                    "days_past_due",
-                    "status",
-                    "next_action_date",
-                    "next_action",
-                ]
-            ].rename(columns={
-                "property_address": "Property",
-                "balance": "Balance",
-                "days_past_due": "Days Past Due",
-                "status": "Status",
-                "next_action_date": "Next Action Date",
-                "next_action": "Next Action",
-            })
-            st.download_button(
-                "Download Board Packet CSV",
-                data=packet.to_csv(index=False),
-                file_name="delinquency_board_packet.csv",
-                mime="text/csv",
-            )
+
+        st.download_button(
+            "Download Board Packet CSV",
+            data=display_df.to_csv(index=False),
+            file_name="delinquency_board_packet.csv",
+            mime="text/csv",
+        )

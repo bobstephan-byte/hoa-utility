@@ -88,3 +88,7 @@ class CaliberClient:
     def current_contacts(self, client_id):
         data = self.get(f"client/{client_id}/contacts/current")
         return data if isinstance(data, list) else [data]
+
+    def delinquencies(self, client_id):
+        data = self.get(f"client/{client_id}/delinquencies")
+        return data if isinstance(data, list) else [data]

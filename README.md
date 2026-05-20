@@ -4,7 +4,7 @@
 A Streamlit dashboard for the Wynbrooke HOA board (Hendricks County, Indiana).
 Tracks parcel ownership, identifies non-owner-occupied (rental) properties,
 monitors the local real estate market for the subdivision (ZIP: 46234), and
-provides a local Treasurer ledger for delinquency follow-up.
+provides a Caliber-backed Treasurer view for delinquency follow-up.
 
 ## Entry Point
 - `app.py` — run with: `streamlit run app.py`
@@ -14,12 +14,15 @@ provides a local Treasurer ledger for delinquency follow-up.
 ## File Structure
 - `app.py` — Streamlit app (Parcels, Market Monitor, Delta Report, Treasurer)
 - `listings_scan.py` — CLI: calls RentCast API, writes to market_monitor_listings.json
+- `caliber_sync.py` — CLI: syncs non-PII Caliber rental registration snapshot
+- `caliber_delinquency_sync.py` — CLI: syncs local Caliber delinquency snapshot
 - `parse_property_data.py` — parses raw property data, contains normalize_addr()
 - `download_property_data.py` — downloads raw county property data
 - `data/wynbrooke_parcels.csv` — master parcel list for Wynbrooke subdivision
 - `data/overrides.json` — manual corrections layer on top of parcel data
 - `data/market_monitor_listings.json` — TinyDB store for RentCast listings
-- `data/delinquencies.csv` — local Treasurer delinquency ledger (never commit)
+- `data/caliber_delinquencies.json` — local Caliber delinquency snapshot (never commit)
+- `data/delinquencies.csv` — optional local Treasurer fallback ledger (never commit)
 - `data/delinquencies_template.csv` — import template for the Treasurer ledger
 - `.env` — API keys (never commit)
 - `venv/` — local virtual environment (never commit)
@@ -37,7 +40,7 @@ provides a local Treasurer ledger for delinquency follow-up.
   address matching, never roll a new approach.
 - subprocess to invoke listings_scan.py from the Streamlit UI (Refresh button)
 - Overrides layer: manual edits go in overrides.json, never directly in the CSV
-- Treasurer delinquency records are stored in ignored local CSV data, not Git
+- Treasurer delinquency records are synced from Caliber and stored in ignored local data, not Git
 
 ## RentCast API
 - Key: RENTCAST_API_KEY in .env
@@ -58,5 +61,5 @@ provides a local Treasurer ledger for delinquency follow-up.
 - Never commit: venv/, .env, data/*.json, data/delinquencies.csv
 
 ## Roadmap / Pending
-- Consider syncing delinquency balances from Caliber Billing Records once the
-  exact endpoint and permissions are confirmed.
+- Treasurer delinquency aging currently uses Caliber stage names because the
+  `/client/{clientId}/delinquencies` endpoint does not expose days past due.

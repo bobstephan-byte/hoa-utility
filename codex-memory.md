@@ -1,6 +1,6 @@
 # Codex Project Memory: HOA Market Monitor
 
-Last reviewed: 2026-05-19
+Last reviewed: 2026-05-20
 
 ## Current Project Shape
 
@@ -12,10 +12,12 @@ This is a compact Streamlit dashboard for the Wynbrooke HOA rental tracking work
 - `frontsteps_probe.py` is a Caliber/FrontSteps API discovery script.
 - `caliber_client.py` contains the reusable Caliber API client and documented v2 auth header.
 - `caliber_sync.py` writes a local non-PII Caliber rental snapshot to `data/caliber_registered_rentals.json`.
+- `caliber_delinquency_sync.py` writes a local Caliber delinquency snapshot to `data/caliber_delinquencies.json`.
 - `data/wynbrooke_parcels.csv` is the processed authoritative parcel list.
 - `data/overrides.json` is the manual correction layer.
 - `data/caliber_registered_rentals.json` is generated locally and intentionally ignored.
-- `data/delinquencies.csv` is the local Treasurer delinquency ledger and is intentionally ignored.
+- `data/caliber_delinquencies.json` is generated locally and intentionally ignored.
+- `data/delinquencies.csv` is an optional fallback Treasurer ledger and is intentionally ignored.
 - `data/delinquencies_template.csv` is a tracked empty import template.
 
 ## Data Snapshot From Review
@@ -36,6 +38,12 @@ The Caliber sync currently returns:
 - 36 units with active renter contacts.
 - Wynbrooke `ClientID` is 191.
 
+The Caliber delinquency sync currently returns:
+
+- 48 delinquent accounts.
+- $47,630.77 total delinquent balance.
+- Stages: Late Notice, 2nd Late Notice, Demand Letter.
+
 ## Git State At Review
 
 Current branch during review: `feature/market-monitor`.
@@ -49,14 +57,15 @@ Existing pre-integration work observed before this note:
 
 - Address matching should continue to use `normalize_addr()` from `parse_property_data.py`; do not create a parallel normalization approach without a good reason.
 - RentCast should be treated as a listing smoke detector, not the authoritative rental source.
-- Caliber/FrontSteps is now the authoritative source for HOA rental registration.
+- Caliber/FrontSteps is now the authoritative source for HOA rental registration and delinquency balances.
 - The Delta Report compares active RentCast rental ads against Caliber `IsHOARental` registrations by normalized street address.
+- The Treasurer tab uses `/client/191/delinquencies`, which exposes stage names and balances but not days past due.
 
 ## Likely Next Steps
 
 1. Improve fuzzy address matching across county data, RentCast, and Caliber/FrontSteps.
 2. Decide whether `IsHOARental`, `IsRenter`, or a combined rule should drive board-facing compliance reporting.
-3. Consider syncing Treasurer delinquency balances from Caliber Billing Records once the exact endpoint and permissions are confirmed.
+3. Investigate transaction history only if the Treasurer needs true days-past-due aging instead of Caliber stage names.
 4. Consider moving the Caliber sync button/status into a small admin section if the dashboard grows.
 5. Replace deprecated Streamlit `use_container_width=True` usages with `width="stretch"` before the 2025-12-31 removal.
 
@@ -71,6 +80,7 @@ Python compilation succeeded for:
 - `frontsteps_probe.py`
 - `caliber_client.py`
 - `caliber_sync.py`
+- `caliber_delinquency_sync.py`
 
 Compilation was run with `PYTHONPYCACHEPREFIX` pointed at `/private/tmp` to avoid macOS cache writes outside the workspace.
 
