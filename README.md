@@ -1,4 +1,4 @@
-# HOA Utility - Project Guide for Claude
+# HOA Utility
 
 ## What This Is
 A Streamlit dashboard for the Wynbrooke HOA board (Hendricks County, Indiana).
