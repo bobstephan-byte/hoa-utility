@@ -2,6 +2,7 @@
 listings_probe.py
 probe_*.json
 data/caliber_*.json
+data/delinquencies.csv
 # Raw county data files - too large and contain PII
 data/*.txt
 data/*.zip

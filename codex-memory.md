@@ -15,6 +15,8 @@ This is a compact Streamlit dashboard for the Wynbrooke HOA rental tracking work
 - `data/wynbrooke_parcels.csv` is the processed authoritative parcel list.
 - `data/overrides.json` is the manual correction layer.
 - `data/caliber_registered_rentals.json` is generated locally and intentionally ignored.
+- `data/delinquencies.csv` is the local Treasurer delinquency ledger and is intentionally ignored.
+- `data/delinquencies_template.csv` is a tracked empty import template.
 
 ## Data Snapshot From Review
 
@@ -54,8 +56,9 @@ Existing pre-integration work observed before this note:
 
 1. Improve fuzzy address matching across county data, RentCast, and Caliber/FrontSteps.
 2. Decide whether `IsHOARental`, `IsRenter`, or a combined rule should drive board-facing compliance reporting.
-3. Consider moving the Caliber sync button/status into a small admin section if the dashboard grows.
-4. Replace deprecated Streamlit `use_container_width=True` usages with `width="stretch"` before the 2025-12-31 removal.
+3. Consider syncing Treasurer delinquency balances from Caliber Billing Records once the exact endpoint and permissions are confirmed.
+4. Consider moving the Caliber sync button/status into a small admin section if the dashboard grows.
+5. Replace deprecated Streamlit `use_container_width=True` usages with `width="stretch"` before the 2025-12-31 removal.
 
 ## Verification From Review
 
