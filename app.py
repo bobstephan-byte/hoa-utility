@@ -301,11 +301,11 @@ if hide_non_residential:
     filtered = filtered[filtered["parcel_type"] == "Residential"]
 
 if status_filter == "Likely Rentals":
-    filtered = filtered[filtered["likely_rental"]]
+    filtered = filtered[filtered["status"] == "Likely Rental"]
 elif status_filter == "Confirmed Rentals":
     filtered = filtered[filtered["status"] == "Confirmed Rental"]
 elif status_filter == "Owner-Occupied":
-    filtered = filtered[~filtered["likely_rental"]]
+    filtered = filtered[filtered["status"] == "Owner-Occupied"]
 
 if owner_search:
     filtered = filtered[filtered["owner_name"].str.contains(owner_search, case=False, na=False)]
