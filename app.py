@@ -25,6 +25,7 @@ OVERRIDES_PATH = os.path.join(_BASE_DIR, "data", "overrides.json")
 MARKET_MONITOR_PATH = os.path.join(_BASE_DIR, "data", "market_monitor_listings.json")
 CALIBER_RENTALS_PATH = os.path.join(_BASE_DIR, "data", "caliber_registered_rentals.json")
 CALIBER_DELINQUENCIES_PATH = os.path.join(_BASE_DIR, "data", "caliber_delinquencies.json")
+CALIBER_VIOLATIONS_PATH = os.path.join(_BASE_DIR, "data", "caliber_violations.json")
 DELINQUENCIES_PATH = os.path.join(_BASE_DIR, "data", "delinquencies.csv")
 DELINQUENCIES_TEMPLATE_PATH = os.path.join(_BASE_DIR, "data", "delinquencies_template.csv")
 
@@ -91,6 +92,13 @@ def load_caliber_data():
 def load_caliber_delinquency_data():
     if os.path.exists(CALIBER_DELINQUENCIES_PATH):
         with open(CALIBER_DELINQUENCIES_PATH, "r") as f:
+            return json.load(f)
+    return None
+
+
+def load_caliber_violation_data():
+    if os.path.exists(CALIBER_VIOLATIONS_PATH):
+        with open(CALIBER_VIOLATIONS_PATH, "r") as f:
             return json.load(f)
     return None
 
@@ -318,11 +326,12 @@ if section_filter:
 
 # ── Main content ─────────────────────────────────────────────────────────────
 
-tab_table, tab_analytics, tab_market, tab_delta, tab_treasurer = st.tabs([
+tab_table, tab_analytics, tab_market, tab_delta, tab_violations, tab_treasurer = st.tabs([
     "Property Table",
     "Analytics",
     "Market Monitor",
     "Delta Report",
+    "Violations",
     "Treasurer",
 ])
 
@@ -690,6 +699,168 @@ with tab_delta:
             )
         else:
             st.info("No active Wynbrooke rental ads in the current Market Monitor snapshot.")
+
+# ── Violations tab ──────────────────────────────────────────────────────────
+
+with tab_violations:
+    st.subheader("Violations — Current Year")
+
+    violation_data = load_caliber_violation_data()
+    records = violation_data.get("records", []) if violation_data else []
+    violation_df = pd.DataFrame(records)
+    if violation_df.empty:
+        violation_df = pd.DataFrame(
+            columns=[
+                "owner",
+                "address",
+                "category",
+                "item",
+                "status",
+                "violation_date",
+                "due_date",
+                "pending_fine_amount",
+                "required_action",
+                "next_action",
+            ]
+        )
+    violation_df["pending_fine_amount"] = pd.to_numeric(
+        violation_df["pending_fine_amount"], errors="coerce"
+    ).fillna(0.0)
+
+    current_year = violation_data.get("year") if violation_data else pd.Timestamp.now().year
+    open_mask = ~violation_df["status"].str.lower().isin(["closed", "resolved"])
+    open_violations = violation_df[open_mask].copy()
+    total_violations = len(violation_df)
+    open_count = len(open_violations)
+    closed_count = total_violations - open_count
+    pending_fines = violation_df["pending_fine_amount"].sum() if not violation_df.empty else 0
+
+    v1, v2, v3, v4 = st.columns(4)
+    v1.metric(f"{current_year} Violations", total_violations)
+    v2.metric("Open", open_count)
+    v3.metric("Closed", closed_count)
+    v4.metric("Pending Fines", f"${pending_fines:,.2f}")
+
+    st.caption(
+        "Caliber violation data is synced to data/caliber_violations.json and ignored by Git."
+    )
+
+    if st.button("Sync Caliber Violations", type="primary"):
+        with st.spinner("Syncing current-year Caliber violations..."):
+            result = subprocess.run(
+                [sys.executable, os.path.join(_BASE_DIR, "caliber_violation_sync.py")],
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode == 0:
+                st.success("Caliber violations synced successfully.")
+            else:
+                st.error(f"Caliber violation sync failed: {result.stderr or result.stdout}")
+        st.rerun()
+
+    if violation_data is None:
+        st.info("No Caliber violation snapshot available yet. Click Sync Caliber Violations.")
+    elif violation_df.empty:
+        st.success(f"No {current_year} violations in the current Caliber snapshot.")
+    else:
+        last_synced = violation_data.get("last_synced", "")
+        st.caption(f"Last synced: {last_synced[:19] if last_synced else 'N/A'} UTC")
+
+        st.markdown("---")
+        chart_col, status_col = st.columns([1, 1])
+
+        with chart_col:
+            st.markdown("**Top Categories**")
+            category_chart = (
+                violation_df.groupby("category")["violation_id"]
+                .count()
+                .sort_values(ascending=False)
+                .head(10)
+            )
+            st.bar_chart(category_chart)
+
+        with status_col:
+            st.markdown("**Status Mix**")
+            status_chart = (
+                violation_df.groupby("status")["violation_id"]
+                .count()
+                .sort_values(ascending=False)
+            )
+            st.bar_chart(status_chart)
+
+        st.markdown("---")
+        filter_col1, filter_col2, filter_col3 = st.columns([1, 1, 2])
+        with filter_col1:
+            status_options = sorted(violation_df["status"].dropna().unique())
+            selected_statuses = st.multiselect("Status", status_options, default=[])
+        with filter_col2:
+            category_options = sorted(violation_df["category"].dropna().unique())
+            selected_categories = st.multiselect("Category", category_options, default=[])
+        with filter_col3:
+            violation_search = st.text_input("Search owner or address")
+
+        visible_violations = violation_df.copy()
+        if selected_statuses:
+            visible_violations = visible_violations[
+                visible_violations["status"].isin(selected_statuses)
+            ]
+        if selected_categories:
+            visible_violations = visible_violations[
+                visible_violations["category"].isin(selected_categories)
+            ]
+        if violation_search:
+            search_mask = (
+                visible_violations["owner"].str.contains(violation_search, case=False, na=False)
+                | visible_violations["address"].str.contains(violation_search, case=False, na=False)
+            )
+            visible_violations = visible_violations[search_mask]
+
+        st.markdown("**Violation Detail**")
+        display_df = visible_violations[
+            [
+                "violation_number",
+                "owner",
+                "address",
+                "category",
+                "item",
+                "status",
+                "violation_date",
+                "due_date",
+                "pending_fine_amount",
+                "required_action",
+                "next_action",
+            ]
+        ].rename(columns={
+            "violation_number": "Violation #",
+            "owner": "Owner",
+            "address": "Address",
+            "category": "Category",
+            "item": "Item",
+            "status": "Status",
+            "violation_date": "Violation Date",
+            "due_date": "Due Date",
+            "pending_fine_amount": "Pending Fine",
+            "required_action": "Required Action",
+            "next_action": "Next Action",
+        }).sort_values(["Status", "Due Date", "Address"], na_position="last")
+
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Owner": st.column_config.TextColumn(width="medium"),
+                "Address": st.column_config.TextColumn(width="large"),
+                "Category": st.column_config.TextColumn(width="medium"),
+                "Pending Fine": st.column_config.NumberColumn(format="$%.2f"),
+            },
+        )
+
+        st.download_button(
+            "Download Violations CSV",
+            data=display_df.to_csv(index=False),
+            file_name=f"violations_{current_year}.csv",
+            mime="text/csv",
+        )
 
 # ── Treasurer tab ───────────────────────────────────────────────────────────
 

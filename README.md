@@ -4,7 +4,7 @@
 A Streamlit dashboard for the Wynbrooke HOA board (Hendricks County, Indiana).
 Tracks parcel ownership, identifies non-owner-occupied (rental) properties,
 monitors the local real estate market for the subdivision (ZIP: 46234), and
-provides a Caliber-backed Treasurer view for delinquency follow-up.
+provides Caliber-backed views for violations and Treasurer delinquency follow-up.
 
 ## Entry Point
 - `app.py` — run with: `streamlit run app.py`
@@ -12,16 +12,18 @@ provides a Caliber-backed Treasurer view for delinquency follow-up.
 - Deployed: https://hoa.bstephan.net (via Cloudflare Tunnel)
 
 ## File Structure
-- `app.py` — Streamlit app (Parcels, Market Monitor, Delta Report, Treasurer)
+- `app.py` — Streamlit app (Parcels, Market Monitor, Delta Report, Violations, Treasurer)
 - `listings_scan.py` — CLI: calls RentCast API, writes to market_monitor_listings.json
 - `caliber_sync.py` — CLI: syncs non-PII Caliber rental registration snapshot
 - `caliber_delinquency_sync.py` — CLI: syncs local Caliber delinquency snapshot
+- `caliber_violation_sync.py` — CLI: syncs local current-year Caliber violation snapshot
 - `parse_property_data.py` — parses raw property data, contains normalize_addr()
 - `download_property_data.py` — downloads raw county property data
 - `data/wynbrooke_parcels.csv` — master parcel list for Wynbrooke subdivision
 - `data/overrides.json` — manual corrections layer on top of parcel data
 - `data/market_monitor_listings.json` — TinyDB store for RentCast listings
 - `data/caliber_delinquencies.json` — local Caliber delinquency snapshot (never commit)
+- `data/caliber_violations.json` — local Caliber violation snapshot (never commit)
 - `data/delinquencies.csv` — optional local Treasurer fallback ledger (never commit)
 - `data/delinquencies_template.csv` — import template for the Treasurer ledger
 - `.env` — API keys (never commit)
@@ -40,7 +42,7 @@ provides a Caliber-backed Treasurer view for delinquency follow-up.
   address matching, never roll a new approach.
 - subprocess to invoke listings_scan.py from the Streamlit UI (Refresh button)
 - Overrides layer: manual edits go in overrides.json, never directly in the CSV
-- Treasurer delinquency records are synced from Caliber and stored in ignored local data, not Git
+- Treasurer delinquency and violation records are synced from Caliber and stored in ignored local data, not Git
 
 ## RentCast API
 - Key: RENTCAST_API_KEY in .env
@@ -49,7 +51,7 @@ provides a Caliber-backed Treasurer view for delinquency follow-up.
 - listings_scan.py handles all API calls
 
 ## Code Style
-- `st.tabs()` for layout (Parcels, Market Monitor, Delta Report, Treasurer)
+- `st.tabs()` for layout (Parcels, Market Monitor, Delta Report, Violations, Treasurer)
 - Sidebar for filters
 - `st.metric()` for summary stats at top of each tab
 - `st.dataframe()` with `use_container_width=True, hide_index=True`

@@ -92,3 +92,7 @@ class CaliberClient:
     def delinquencies(self, client_id):
         data = self.get(f"client/{client_id}/delinquencies")
         return data if isinstance(data, list) else [data]
+
+    def violations(self, client_id, scope="all"):
+        data = self.get(f"client/{client_id}/violations/{scope}")
+        return data if isinstance(data, list) else [data]
