@@ -48,6 +48,7 @@ def normalize_addr(addr):
     addr = re.sub(r'\bBOULEVARD\b', 'BLVD', addr)
     addr = re.sub(r'\bPLACE\b', 'PL', addr)
     addr = re.sub(r'\bCIRCLE\b', 'CIR', addr)
+    addr = re.sub(r'\bWAY\b', 'WY', addr)
     # Remove extra spaces
     addr = re.sub(r'\s+', ' ', addr)
     return addr
