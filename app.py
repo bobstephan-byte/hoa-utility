@@ -1,5 +1,5 @@
 """
-Wynbrooke HOA — Rental Property Tracker Dashboard
+Wynbrooke HOA — Board Utility App
 """
 
 import json
@@ -14,7 +14,7 @@ import streamlit as st
 from parse_property_data import normalize_addr
 
 st.set_page_config(
-    page_title="Wynbrooke Rental Tracker",
+    page_title="Wynbrooke HOA Board Utility App",
     page_icon="🏘️",
     layout="wide",
 )
@@ -257,7 +257,7 @@ overrides = load_overrides()
 
 # ── Header ───────────────────────────────────────────────────────────────────
 
-st.title("Wynbrooke Rental Property Tracker")
+st.title("Wynbrooke HOA Board Utility App")
 st.caption("Hendricks County, IN — Source: Indiana Gateway Real Property File (2024 pay 2025)")
 
 residential = df[df["parcel_type"] == "Residential"]
